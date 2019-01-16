@@ -5,7 +5,7 @@
   - Input
     - CANUSB device
     - candump *.log
-    - vehicle spy *.csv (unimplemented)
+    - vehicle spy *.csv
   - Output
     - Candump format *.log
     - Below data on CUI
