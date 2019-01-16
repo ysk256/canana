@@ -29,7 +29,7 @@ import interface
 
 inf = interface.candump("dump.log")
 while 1:
-  msg = inf.read_msg()
+  msg = inf.recv()
   if msg is None:
     break
   ts, dev_name, msg_id, msg_size, msg_dat = msg.timestamp, msg.channel, msg.arbitration_id, msg.dlc, msg.data.hex()
@@ -44,7 +44,7 @@ import interface
 
 inf = interface.vehiclespy("dump.csv")
 while 1:
-  msg = inf.read_msg()
+  msg = inf.recv()
   if msg is None:
     break
   ts, dev_name, msg_id, msg_size, msg_dat = msg.timestamp, msg.channel, msg.arbitration_id, msg.dlc, msg.data.hex()
