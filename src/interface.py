@@ -4,6 +4,7 @@
 import csv
 import datetime
 import serial
+import can
 
 # init
 class base():
@@ -23,6 +24,10 @@ class base():
 class canusb(base):
   """
   read/write CANUSB device
+  
+  import can.interfaces.slcan
+  inf = can.interfaces.slcan.slcanBus(channel=dev_name, ttyBaudrate=115200, timeout=0, bitrate=None)
+  
   """
   fd = None
   def write_fd(self, dat):
@@ -104,6 +109,11 @@ class canusb(base):
 class candump(base):
   """
   read candump *.log
+  
+  import can
+  inf = can.io.CanutilsLogReader(file_name)
+  
+  inf = can.io.CanutilsLogWriter(filename, channel='vcan0')
   """
   def __init__(self, file_name):
     self.file_name = file_name
@@ -221,4 +231,26 @@ class vehiclespy(base):
       msg_size = len(msg_dat) // 2
       msg = [ts, dev_name, msg_id, msg_size, msg_dat]
       return msg
+    return None
+
+class pythoncan():
+  """
+  read/write
+  """
+  fd = None
+  def __init__(self, dev_name):
+    self.fd = can.interface.Bus(bustype='socketcan_native', channel=dev_name)
+    if self.fd is None:
+      return None
+  def close(self):
+    self.fd.shutdown()
+  def write_msg(self, msg):
+    ts, dev_name, msg_id, msg_size, msg_dat = msg
+    msg2 = Message(timestamp = ts, arbitration_id = msg_id, extended_id = None, is_remote_frame = False, is_error_frame = False, dlc = msg_size, data = [int(msg_dat[i:i+2],16) for i in range(0,len(msg_dat),2)])
+    self.fd.send(msg2)
+  def read_msg(self):
+    msg = self.fd.recv()
+    if msg is not None:
+      msg2 = [msg.timestamp, msg.channel, msg.arbitration_id, msg.dlc, msg.data.hex()]
+      return msg2
     return None
