@@ -8,19 +8,19 @@
     - vehicle spy *.csv
   - Output
     - Candump format *.log
-    - Below data on CUI
-- CUI output
-  - Canbus messages (Time stamp, ID, size, Message data and Message ascii)
-  - Message data w/ coloring diff data
-  - Message interval msec (average and variance)
+    - Canbus messages view (Time stamp, ID, size, Message data and Message ascii)
+    - Message data w/ coloring diff data
+    - Message interval msec (average and variance)
 
 ## Requirements
-- Python3 and libraries(click, pySerial)
-- OS: Windows, Linux, Mac
-- CANUSB Device or any other CAN I/F via Serial device
+- Language: Python3.x
+- libraries: python-can, cantools, pySerial, sympy, click, ctype on windows
+- OS: Windows, Linux, macOS
+- Device: CANUSB on Windows/Linux and any other CAN I/F can be use python-can
 
 ## Install
-- cpoy your project directory, then import it.
+- cpoy your project directory
+- then run canana.py or import interface as library
 
 ## Example
 - read candump logfile *.log
@@ -32,7 +32,7 @@ while 1:
   msg = inf.read_msg()
   if msg is None:
     break
-  ts, dev_name, msg_id, msg_size, msg_dat = msg
+  ts, dev_name, msg_id, msg_size, msg_dat = msg.timestamp, msg.channel, msg.arbitration_id, msg.dlc, msg.data.hex()
   print("(%f) %s %03X#%s" % (ts, dev_name, msg_id, msg_dat))
 
 inf.close()
@@ -47,9 +47,8 @@ while 1:
   msg = inf.read_msg()
   if msg is None:
     break
-  ts, dev_name, msg_id, msg_size, msg_dat = msg
+  ts, dev_name, msg_id, msg_size, msg_dat = msg.timestamp, msg.channel, msg.arbitration_id, msg.dlc, msg.data.hex()
   print("(%f) %s %03X#%s" % (ts, dev_name, msg_id, msg_dat))
 
 inf.close()
 ```
-
