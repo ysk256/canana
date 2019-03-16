@@ -93,7 +93,7 @@ def main():
     if args.logging_name:
       fd_log = open(args.logging_name, "w")
   elif args.pythoncan_dev:
-    inf = interface.canusb(args.pythoncan_dev)
+    inf = interface.pythoncan(args.pythoncan_dev)
     if inf is None:
       print("interface intialize error %s" % (args.pythoncan_dev))
       return
