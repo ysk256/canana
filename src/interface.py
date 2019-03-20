@@ -235,7 +235,10 @@ class pythoncan(base):
   """
   fd = None
   def __init__(self, dev_name):
-    self.fd = can.interface.Bus(bustype='socketcan_native', channel=dev_name)
+    try:
+      self.fd = can.interface.Bus(bustype='socketcan_native', channel=dev_name)
+    except:
+      self.fd = can.interface.Bus(bustype='socketcan_ctypes', channel=dev_name)
     if self.fd is None:
       return None
   def close(self):

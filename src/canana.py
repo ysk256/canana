@@ -6,7 +6,7 @@ Version History
   0.1.1: Support vehicle spy *.csv
   0.1.2: Improvement cui view. move color.py to screen.py
   0.2.0: Support python-can devices (socketcan_native, etc...) and separate analyzer class file
-  1.0.0: Change to using more python-can on interface.py and add analyzer.analyze_regularity()
+  1.0.0: Change to using more python-can on interface.py, add analyzer.analyze_regularity() and change to recv()/write()
 """
 import os
 import time
