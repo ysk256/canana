@@ -3,8 +3,11 @@
 
 import csv
 import datetime
+import binascii
 import serial
 import can
+import usb.core
+import usb.util
 
 # init
 class base():
@@ -12,7 +15,7 @@ class base():
     self.is_debug = False
   def close(self):
     pass
-  def recv(self):
+  def recv(self, timeout=None):
     pass
   def send(self, msg):
     pass
@@ -50,11 +53,13 @@ class canusb(base):
     #  dat += tmp
     while  dat == b"" or dat[-1] != 0xd: # 0xd=\r
       dat = dat + self.fd.read()
+      if len(dat) > 0 and dat[-1] == 0x07: # for UCAN UCC
+        return ""
     return dat.decode()
-  def __init__(self, dev_name):
+  def __init__(self, dev_name, bps = 119200):
     super().__init__()
     #self.is_debug = True
-    self.fd = serial.Serial(dev_name, 119200, timeout=1)
+    self.fd = serial.Serial(dev_name, bps, timeout=1)
     if self.fd is None:
       return None
     self.write_fd('V') # Version => V1011
@@ -85,13 +90,13 @@ class canusb(base):
     self.fd.close()
   def send(self, frame):
     if frame.is_extended_id:
-      tx_str = "T%08X%d" % (frame.arb_id, frame.dlc)
+      tx_str = "T%08X%d" % (frame.arbitration_id, frame.dlc)
     else:
-      tx_str = "t%03X%d" % (frame.arb_id, frame.dlc)
+      tx_str = "t%03X%d" % (frame.arbitration_id, frame.dlc)
     for i in range(0, frame.dlc):
       tx_str = tx_str + ("%02X" % frame.data[i])
     self.write_fd(tx_str) # send 0x7E0 8 02210C00 00000000
-  def recv(self):
+  def recv(self, timeout=None):
     while 1:
       # read canbus
       dat = self.readline_fd()
@@ -151,7 +156,7 @@ class candump(base):
     self.fd = can.io.CanutilsLogReader(self.file_name)
   def close(self):
     self.fd = None
-  def recv(self):
+  def recv(self, timeout=None):
     return self.fd.__iter__()
 
 class vehiclespy(base):
@@ -203,7 +208,7 @@ class vehiclespy(base):
     except:
       pass
     return None
-  def recv(self):
+  def recv(self, timeout=None):
     while 1:
       # read
       rows = self.readrows()
@@ -245,9 +250,78 @@ class pythoncan(base):
     self.fd.shutdown()
   def send(self, msg):
     self.fd.send(msg)
-  def recv(self):
+  def recv(self, timeout=None):
     while 1:
-      msg = self.fd.recv()
+      msg = self.fd.recv(timeout)
       if msg is None:
         break
       yield msg
+
+class usb2can(base):
+  s = None
+  def __init__(self, idVendor=0x0483, idProduct=0x1234):
+    dev = usb.core.find(idVendor=idVendor, idProduct=idProduct)
+    dev.set_configuration()
+    cfg = dev.get_active_configuration()
+    itfs = cfg[(0,0)]
+    dat_in = usb.util.find_descriptor(itfs, bEndpointAddress=0x81)
+    dat_out = usb.util.find_descriptor(itfs, bEndpointAddress=0x2)
+    cmd_in = usb.util.find_descriptor(itfs, bEndpointAddress=0x83)
+    cmd_out = usb.util.find_descriptor(itfs, bEndpointAddress=0x4)
+    self.s = [dat_in, dat_out, cmd_in, cmd_out]
+    self.open()
+  def send_wait_cmd(self, msg):
+    cmd_in, cmd_out = self.s[2], self.s[3]
+    if cmd_out.write(msg) != len(msg):
+      print("send error")
+    return cmd_in.read(128)
+  def make_cmd(self, command, opt1 = 0, opt2 = 0, data = ""):
+    channel = 0
+    #msg = "%02x"%USB_8DEV_CMD_START + "%02x"%channel + "%02x"%command + "%02x"%opt1 + "%02x"%opt2 + "".join(["%02x"%i for i in data]) + "%02x"%USB_8DEV_CMD_END
+    msg = "1100%02x%02x%02x%s22" % (command, opt1, opt2, data)
+    return binascii.unhexlify(msg)
+  def version(self):
+    # get firmwate and hardware version
+    msg = self.make_cmd(0xC, data="00"*10) # USB_8DEV_GET_SOFTW_HARDW_VER
+    ret = self.send_wait_cmd(msg)
+    print(ret)
+  def open(self):
+    # data = [ts1+1,ts2+1,sjw+1,(brp>>8)&0xff,brp&0xff,0,0,0,8,0]
+    #         0d    02    01    00            04
+    #msg = "11 00 02 09 00 0d020100040000000800 22".replace(" ","")
+    #cmd_out.write(binascii.unhexlify(msg)) # type can bitrate 500000bps
+    #cmd_in.read(128) # array('B', [17, 0, 2, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 34])
+    ctrlmode = 0x08
+    msg = self.make_cmd(0x2, opt1=0x09, data="0d02010004000000%02x00" % ctrlmode) # USB_8DEV_OPEN
+    ret = self.send_wait_cmd(msg)
+    #print(ret)
+  def close(self):
+    msg = self.make_cmd(0x3, data="00"*10) # USB_8DEV_CLOSE
+    ret = self.send_wait_cmd(self.s, msg)
+    #print(ret)
+  def send(self, msg):
+    dat_out = self.s[1]
+    # flags : RTR and EXT_ID (USB_8DEV_EXTID if msg.extended_id) flag
+    # id : 11 / 29bit
+    #msg = "%02x"%USB_8DEV_DATA_START + "%02x"%flags + "%08x"%id + "%02x"%dlc + "".join(["%02x"%i for i in data]) + "%02x"%USB_8DEV_DATA_END
+    flags = 0
+    dlc_max = 8
+    data ="".join(["%02x"%i for i in msg.data])
+    data += "00" * (dlc_max - len(msg.data))
+    msg = "55%02x%08x%02x%saa" % (flags, msg.arbitration_id, msg.dlc, data)
+    dat_out.write(binascii.unhexlify(msg))
+  def recv(self, timeout=999):
+    dat_in = self.s[0]
+    timeout *= 1000
+    dev_name_dummy = "can0"
+    while 1:
+      msg = dat_in.read(128, timeout = timeout)
+      if msg[0] != 0x55 or msg[-1] != 0xAA or 13 + msg[7] != len(msg): # USB_8DEV_DATA_START, USB_8DEV_DATA_END
+        break
+      frame_type, flags, msg_id, dlc, data, timestamp = msg[1], msg[2], msg[3:7], msg[7], msg[8:-5], msg[-5:-1]
+      msg_id = (((((msg_id[0]<<8) + msg_id[1])<<8) + msg_id[2])<<8) + msg_id[3]
+      msg_dat = [i for i in data]
+      timestamp = ((((((timestamp[3]<<8) + timestamp[2])<<8) + timestamp[1])<<8) + timestamp[0])/1000
+      msg = can.Message(timestamp = timestamp, arbitration_id = msg_id, extended_id = False, is_remote_frame = False, is_error_frame = False, dlc = len(msg_dat), data = msg_dat, channel = dev_name_dummy)
+      yield msg
+

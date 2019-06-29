@@ -99,6 +99,13 @@ def main():
       return
     if args.logging_name:
       fd_log = open(args.logging_name, "w")
+  elif args.usb2can_dev:
+    inf = interface.usb2can()
+    if inf is None:
+      print("interface intialize error usb2can_dev")
+      return
+    if args.logging_name:
+      fd_log = open(args.logging_name, "w")
   elif args.candump_log:
     inf = interface.candump(args.candump_log)
     if inf is None:
@@ -190,8 +197,9 @@ def parse_args():
   # basic arguments
   parser.add_argument("-v", "--version", action='store_true', help="show version")
   # read arguments
-  parser.add_argument("-u", "--canusb_dev", type=str, help="CANUSB device ex)Win:COM1, Linux:/dev/ttyUSB0, Mac:/dev/cu.usbserial-***", dest="canusb_dev")
-  parser.add_argument("-c", "--pythoncan_dev", type=str, help="python-can device ex)can0, slcan0", dest="pythoncan_dev")
+  parser.add_argument("-u", "--canusb_dev", type=str, help="Serial CAN device ex)Win:COM1, Linux:/dev/ttyUSB0, Mac:/dev/cu.usbserial-***", dest="canusb_dev")
+  parser.add_argument("-c", "--pythoncan_dev", type=str, help="Socketcan/python-can device ex)can0, slcan0", dest="pythoncan_dev")
+  parser.add_argument("-u2c", "--usb2can_dev", type=bool, help="usb2can/usb8dev device for windows", dest="usb2can_dev")
   parser.add_argument("-d", "--candump_log", type=str, help="candump *.log", dest="candump_log")
   parser.add_argument("-s", "--vehiclespy_csv", type=str, help="Vehicle Spy *.csv", dest="vehiclespy_csv")
   # write arguments
