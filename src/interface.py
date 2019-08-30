@@ -4,6 +4,7 @@
 import csv
 import datetime
 import binascii
+import re
 import serial
 import can
 import usb.core
@@ -158,6 +159,42 @@ class candump(base):
     self.fd = None
   def recv(self, timeout=None):
     return self.fd.__iter__()
+
+class candump_nots(base):
+  """
+  read candump *.log
+  
+  format
+    can0  18E   [8]  00 00 00 00 06 EC 81 04
+    can0  3EC   [2]  00 00
+  """
+  def __init__(self, file_name):
+    self.file_name = file_name
+    self.fd = open(file_name)
+    self.pattern = re.compile(r"(\S+)\s+([0-9A-Fa-f]+)\s+\[(\d)+\]\s+([0-9A-Fa-f ]+)")
+    self.dummy_ts = 0
+  def close(self):
+    self.fd.close()
+    self.fd = None
+  def recv(self, timeout=None):
+    while 1:
+      line = self.fd.readline()
+      if not line:
+        break
+      line = line.strip(" ").rstrip("\n\r ")
+      m = self.pattern.match(line)
+      if m is None or len(m.groups()) != 4:
+        continue
+      dev_name, msg_id, msg_size, msg_dat = m.groups()
+      ts = self.dummy_ts
+      self.dummy_ts += 0.01
+      msg_id  = int(msg_id, 16)
+      msg_size = int(msg_size)
+      msg_dat = [int(i,16) for i in msg_dat.split(" ")]
+      dev_name = dev_name.replace(" ","_")
+      msg = can.Message(timestamp = ts, arbitration_id = msg_id, extended_id = None, is_remote_frame = False, is_error_frame = False, dlc = msg_size, data = msg_dat, channel = dev_name)
+      yield msg
+    return None
 
 class vehiclespy(base):
   """

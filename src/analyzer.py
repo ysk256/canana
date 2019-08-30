@@ -156,7 +156,8 @@ class analyzer():
       tmp = msg.data[i]
       range_min[i] = tmp if range_min[i] is None else min(range_min[i], tmp)
       range_max[i] = tmp if range_max[i] is None else max(range_max[i], tmp)
-      range_bit[i] = tmp if range_bit[i] is None else range_bit[i] | tmp
+      #range_bit[i] = tmp if range_bit[i] is None else range_bit[i] | tmp
+      range_bit[i] = 0 if not (msg_id in self.msgs and range_bit[i] is not None) else range_bit [i] | (self.msgs[msg_id][-1].data[i] ^ tmp)
     self.analyzed_dat[msg_id]["range"][0] = range_min
     self.analyzed_dat[msg_id]["range"][1] = range_max
     self.analyzed_dat[msg_id]["range"][2] = range_bit
@@ -234,7 +235,7 @@ class analyzer():
     if msg_id in self.msgs:
       # make analyzed_line
       _, _, _, ts_avg, ts_var = self.analyzed_dat[msg_id]["diff_ts"]
-      return "% 4d(+/-%03d)" % (ts_avg, ts_var)
+      return "% 5d(+/-%03d)" % (ts_avg, ts_var)
     return ""
   def get_diff_info(self, msg_id):
     if msg_id in self.msgs:
